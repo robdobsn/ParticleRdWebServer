@@ -148,19 +148,19 @@ void RdWebClient::service(RdWebServer *pWebServer)
 
                if (headerComplete && (_httpReqPayloadLen == 0))
                {
-                   _httpReqPayloadLen   = getContentLengthFromHeader(_httpReqStr);
+                   int payloadLen = getContentLengthFromHeader(_httpReqStr);
                    _curHttpPayloadRxPos = 0;
+                   Log.trace("TCPClient Payload length %d", payloadLen);
                    // We have to ignore payloads that are too big for our memory
-                   if (_httpReqPayloadLen > HTTP_MAX_PAYLOAD_LENGTH)
-                   {
-                       _httpReqPayloadLen = 0;
-                   }
-                   else
+                   if (payloadLen > HTTP_MAX_PAYLOAD_LENGTH)
+                       payloadLen = 0;
+                   if ((payloadLen != 0) && (payloadLen != _httpReqPayloadLen))
                    {
                        delete [] _pHttpReqPayload;
                        // Add space for null terminator
-                       _pHttpReqPayload = new unsigned char[_httpReqPayloadLen + 1];
+                       _pHttpReqPayload = new unsigned char[payloadLen + 1];
                    }
+                   _httpReqPayloadLen = payloadLen;
                }
 
                // Check for completion
@@ -171,7 +171,7 @@ void RdWebClient::service(RdWebServer *pWebServer)
                    _pResourceToSend = handleReceivedHttp(handledOk, pWebServer);
                    // clean the received resources
                    _httpReqPayloadLen = 0;
-                   delete _pHttpReqPayload;
+                   delete [] _pHttpReqPayload;
                    _httpReqStr = "";
                    // Get ready to send the response (in sections as needed)
                    _resourceSendIdx      = 0;

@@ -7,7 +7,7 @@
 SYSTEM_THREAD(ENABLED);
 SYSTEM_MODE(AUTOMATIC);
 
-SerialLogHandler logHandler(LOG_LEVEL_WARN);
+SerialLogHandler logHandler(LOG_LEVEL_TRACE);
 
 // Web server port
 int webServerPort = 80;
@@ -29,6 +29,14 @@ void setup()
   Serial.begin(115200);
   delay(3000);
   Log.info("Particle_RdWebServerTest 2017Sep01");
+
+  while(1)
+  {
+      if (WiFi.ready())
+        break;
+      delay(5000);
+      Log.warn("Waiting for WiFi");
+  }
   IPAddress myIp = WiFi.localIP();
   char myIpAddress[24];
   sprintf(myIpAddress, "%d.%d.%d.%d", myIp[0], myIp[1], myIp[2], myIp[3]);
