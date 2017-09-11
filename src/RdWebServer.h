@@ -78,9 +78,10 @@ private:
     // HTTP Request
     String _httpReqStr;
 
-    // HTTP Request payload
+    // HTTP Request payload and header complete
     unsigned char* _pHttpReqPayload;
     int _httpReqPayloadLen;
+    bool _httpHeaderComplete;
 
     // HTTP payload while being received
     int _curHttpPayloadRxPos;
@@ -98,6 +99,12 @@ private:
     int _clientIdx;
 
 private:
+    // Handle reading of data from TCP
+    void handleTCPReadData(int numToRead);
+
+    // Cleanup resources used for TCP Rx
+    void cleanupTCPRxResources();
+
     // cleanUp
     void cleanUp();
 

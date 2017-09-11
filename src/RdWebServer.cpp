@@ -62,6 +62,136 @@ const char *RdWebClient::connStateStr()
 }
 
 
+//////////////////////////////
+// Handle read from TCP client
+void RdWebClient::handleTCPReadData(int numToRead)
+{
+    // Read from TCP client
+    // Note: reads to a position a few chars ahead of the start of the buffer - this is
+    // to permit chars from the end of a previous buffer to be added for end of header testing
+    // allowing that the header might be split across two frames
+    const char *headerEndSequence = "\r\n\r\n";
+    const int  headerEndSeqLen    = strlen(headerEndSequence);
+    uint8_t    *pTCPReadBuf       = new uint8_t[numToRead + headerEndSeqLen + 1];
+
+    // Fill initial chars with spaces
+    memset(pTCPReadBuf, ' ', headerEndSeqLen);
+    // Pointer to where data actually read to
+    uint8_t *pTCPReadPos = pTCPReadBuf + headerEndSeqLen;
+    int     numRead      = _TCPClient.read(pTCPReadPos, numToRead);
+    if (numRead <= 0)
+    {
+        delete [] pTCPReadBuf;
+        return;
+    }
+    // Terminate buffer
+    pTCPReadPos[numRead] = '\0';
+
+    // Check if header already complete
+    if (!_httpHeaderComplete)
+    {
+        // See if the end of header might be split across frames
+        if ((pTCPReadPos[0] == '\r') || (pTCPReadPos[0] == '\n'))
+        {
+            // Copy at most headerEndSeqLen chars to the bit before the data we read
+            int        reqLen   = _httpReqStr.length();
+            const char *pReqStr = _httpReqStr.c_str();
+            for (int i = 0; (i < headerEndSeqLen) && (i < reqLen); i++)
+            {
+                pTCPReadBuf[headerEndSeqLen - i - 1] = pReqStr[reqLen - i - 1];
+            }
+        }
+        // Location of end of header in read buffer
+        uint8_t *pEndOfHeaderInReadBuf = NULL;
+        // Check if the composite buffer contains the end of header string
+        uint8_t *pEOLEOL = (uint8_t *)strstr((const char *)pTCPReadBuf, headerEndSequence);
+        if (pEOLEOL != NULL)
+        {
+            // End of the string to be added to the request header
+            pEndOfHeaderInReadBuf = pEOLEOL + headerEndSeqLen;
+            // Header now complete
+            _httpHeaderComplete = true;
+        }
+        // Copy the header portion to the request header string
+        uint8_t charReplacedForTerminator = 0;
+        if (pEndOfHeaderInReadBuf != NULL)
+        {
+            charReplacedForTerminator = *pEndOfHeaderInReadBuf;
+            // Terminate string temporarily
+            *pEndOfHeaderInReadBuf = 0;
+        }
+        if ((_httpReqStr.length() + strlen((const char*)pTCPReadPos) < HTTPD_MAX_REQ_LENGTH))
+            _httpReqStr.concat((char *)pTCPReadPos);
+        // Put back the char which we replaced with terminator
+        if (pEndOfHeaderInReadBuf != NULL)
+            *pEndOfHeaderInReadBuf = charReplacedForTerminator;
+        // Get the length of the payload
+        if (_httpHeaderComplete)
+        {
+            int payloadLen = getContentLengthFromHeader(_httpReqStr);
+            _curHttpPayloadRxPos = 0;
+            Log.trace("WebClient Payload length %d", payloadLen);
+            // We have to ignore payloads that are too big for our memory
+            if (payloadLen > HTTP_MAX_PAYLOAD_LENGTH)
+            {
+                payloadLen = 0;
+            }
+            if ((payloadLen != 0) && (payloadLen != _httpReqPayloadLen))
+            {
+                delete [] _pHttpReqPayload;
+                // Add space for null terminator
+                _pHttpReqPayload    = new unsigned char[payloadLen + 1];
+                _pHttpReqPayload[0] = 0;
+            }
+            _httpReqPayloadLen = payloadLen;
+        }
+        // Copy payload data to the payload buffer (if any)
+        if ((_httpReqPayloadLen > 0) && (pEndOfHeaderInReadBuf != NULL))
+        {
+            int toCopy = numRead - (pEndOfHeaderInReadBuf - pTCPReadPos);
+            if (toCopy > _httpReqPayloadLen)
+            {
+                toCopy = _httpReqPayloadLen;
+            }
+            memcpy(_pHttpReqPayload, pEndOfHeaderInReadBuf, toCopy);
+            _curHttpPayloadRxPos = toCopy;
+            *(_pHttpReqPayload + _curHttpPayloadRxPos) = 0;
+        }
+    }
+    else
+    {
+        // Copy data to payload
+        int spaceLeft = _httpReqPayloadLen - _curHttpPayloadRxPos;
+        if (spaceLeft > 0)
+        {
+            int toCopy = numRead;
+            if (toCopy > spaceLeft)
+            {
+                toCopy = spaceLeft;
+            }
+            memcpy(_pHttpReqPayload + _curHttpPayloadRxPos, pTCPReadPos, toCopy);
+            _curHttpPayloadRxPos += toCopy;
+            *(_pHttpReqPayload + _curHttpPayloadRxPos) = 0;
+        }
+    }
+
+    // Clean up temp buffer
+    delete [] pTCPReadBuf;
+}
+
+////////////////////////////////////////////
+// Clean up resources used for TCP reception
+void RdWebClient::cleanupTCPRxResources()
+{
+    // Deallocate memory and reset payload length etc
+    _httpReqPayloadLen  = 0;
+    _httpHeaderComplete = false;
+    delete [] _pHttpReqPayload;
+    _pHttpReqPayload = NULL;
+    _httpReqStr      = "";
+}
+
+
 //////////////////////////////////
 // Handle the client state machine
 void RdWebClient::service(RdWebServer *pWebServer)
@@ -75,9 +205,8 @@ void RdWebClient::service(RdWebServer *pWebServer)
         if (_TCPClient)
         {
             // Now connected
+            cleanupTCPRxResources();
             setState(WEB_CLIENT_ACCEPTED);
-            _httpReqStr        = "";
-            _httpReqPayloadLen = 0;
             // Info
             IPAddress ip    = _TCPClient.remoteIP();
             String    ipStr = ip;
@@ -92,10 +221,18 @@ void RdWebClient::service(RdWebServer *pWebServer)
            {
                Log.trace("WebClient disconnected");
                _TCPClient.stop();
+               cleanupTCPRxResources();
                setState(WEB_CLIENT_NONE);
                break;
            }
-
+           // Check for having been in this state for too long
+           if (RdWebServerUtils::isTimeout(millis(), _webClientStateEntryMs, MAX_MS_IN_CLIENT_STATE_WITHOUT_DATA))
+           {
+               Log.info("WebClient no-data timeout");
+               _TCPClient.stop();
+               cleanupTCPRxResources();
+               setState(WEB_CLIENT_NONE);
+           }
            // Anything available?
            int numBytesAvailable = _TCPClient.available();
            int numToRead         = numBytesAvailable;
@@ -103,99 +240,41 @@ void RdWebClient::service(RdWebServer *pWebServer)
            {
                // Make sure we don't overflow buffers
                if (numToRead > MAX_CHS_IN_SERVICE_LOOP)
-               {
                    numToRead = MAX_CHS_IN_SERVICE_LOOP;
-               }
                if (_httpReqStr.length() + numToRead > HTTPD_MAX_REQ_LENGTH)
-               {
                    numToRead = HTTPD_MAX_REQ_LENGTH - _httpReqStr.length();
-               }
            }
 
            // Check if we want to read
-           if (numToRead > 0)
+           if (numToRead <= 0)
+               return;
+
+           // Handle read from TCP client
+           handleTCPReadData(numToRead);
+
+           // Check for completion
+           if (_httpHeaderComplete && (_httpReqPayloadLen == _curHttpPayloadRxPos))
            {
-               // Read from TCP client
-               uint8_t *tmpBuf = new uint8_t[numToRead + 1];
-               int     numRead = _TCPClient.read(tmpBuf, numToRead);
-               tmpBuf[numToRead] = '\0';
-
-               // Handle either by contactenating to the _httpReqStr or to the _pHttpReqPayload
-               if (_httpReqPayloadLen == 0)
+               Log.trace("WebClient received %d", _httpReqStr.length());
+               bool handledOk = false;
+               _pResourceToSend = handleReceivedHttp(handledOk, pWebServer);
+               // clean the received resources
+               cleanupTCPRxResources();
+               // Get ready to send the response (in sections as needed)
+               _resourceSendIdx      = 0;
+               _resourceSendBlkCount = 0;
+               _resourceSendMillis   = millis();
+               // Wait until response complete
+               setState(WEB_CLIENT_SEND_RESOURCE_WAIT);
+               if (!handledOk)
                {
-                   if ((_httpReqStr.length() + strlen((const char *)tmpBuf) < HTTPD_MAX_REQ_LENGTH))
-                   {
-                       _httpReqStr.concat((char *)tmpBuf);
-                   }
-               }
-               else
-               {
-                   for (int i = 0; i < numRead; i++)
-                   {
-                       if (_curHttpPayloadRxPos >= _httpReqPayloadLen)
-                       {
-                           break;
-                       }
-                       _pHttpReqPayload[_curHttpPayloadRxPos++] = tmpBuf[i];
-                   }
-                   // Ensure null terminated
-                   _pHttpReqPayload[_curHttpPayloadRxPos] = 0;
-               }
-               delete [] tmpBuf;
-
-               // Check if header complete
-               bool headerComplete = _httpReqStr.indexOf("\r\n\r\n") >= 0;
-
-               if (headerComplete && (_httpReqPayloadLen == 0))
-               {
-                   int payloadLen = getContentLengthFromHeader(_httpReqStr);
-                   _curHttpPayloadRxPos = 0;
-                   Log.trace("TCPClient Payload length %d", payloadLen);
-                   // We have to ignore payloads that are too big for our memory
-                   if (payloadLen > HTTP_MAX_PAYLOAD_LENGTH)
-                       payloadLen = 0;
-                   if ((payloadLen != 0) && (payloadLen != _httpReqPayloadLen))
-                   {
-                       delete [] _pHttpReqPayload;
-                       // Add space for null terminator
-                       _pHttpReqPayload = new unsigned char[payloadLen + 1];
-                   }
-                   _httpReqPayloadLen = payloadLen;
-               }
-
-               // Check for completion
-               if (headerComplete && (_httpReqPayloadLen == _curHttpPayloadRxPos))
-               {
-                   Log.trace("WebClient received %d", _httpReqStr.length());
-                   bool handledOk = false;
-                   _pResourceToSend = handleReceivedHttp(handledOk, pWebServer);
-                   // clean the received resources
-                   _httpReqPayloadLen = 0;
-                   delete [] _pHttpReqPayload;
-                   _httpReqStr = "";
-                   // Get ready to send the response (in sections as needed)
-                   _resourceSendIdx      = 0;
-                   _resourceSendBlkCount = 0;
-                   _resourceSendMillis   = millis();
-                   // Wait until response complete
-                   setState(WEB_CLIENT_SEND_RESOURCE_WAIT);
-                   if (!handledOk)
-                   {
-                       Log.info("WebClient couldn't handle request");
-                   }
-               }
-               else
-               {
-                   // Restart state timer to ensure timeout only happens when there is no data
-                   _webClientStateEntryMs = millis();
+                   Log.info("WebClient couldn't handle request");
                }
            }
-           // Check for having been in this state for too long
-           if (RdWebServerUtils::isTimeout(millis(), _webClientStateEntryMs, MAX_MS_IN_CLIENT_STATE_WITHOUT_DATA))
+           else
            {
-               Log.info("WebClient no-data timeout");
-               _TCPClient.stop();
-               setState(WEB_CLIENT_NONE);
+               // Restart state timer to ensure timeout only happens when there is no data
+               _webClientStateEntryMs = millis();
            }
            break;
        }
@@ -308,9 +387,13 @@ RdWebServerResourceDescr *RdWebClient::handleReceivedHttp(bool& handledOk, RdWeb
                 (pEndpoint->_callback)(apiMsg, retStr);
                 Log.trace("WebClient api response len %d", retStr.length());
                 if (strlen(pEndpoint->_pContentType) == 0)
+                {
                     formHTTPResponse(_httpRespStr, "200 OK", "application/json", retStr.c_str(), -1);
+                }
                 else
+                {
                     formHTTPResponse(_httpRespStr, "200 OK", pEndpoint->_pContentType, retStr.c_str(), -1);
+                }
                 Log.trace("WebClient http response len %d", _httpRespStr.length());
                 // These delays arrived at by experimentation - 15ms seems ok, 10ms is not
                 delay(20);
