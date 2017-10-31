@@ -210,7 +210,7 @@ void RdWebClient::service(RdWebServer *pWebServer)
             // Info
             IPAddress ip    = _TCPClient.remoteIP();
             String    ipStr = ip;
-            Log.info("WebClient IP %s", ipStr.c_str());
+            Log.trace("WebClient IP %s", ipStr.c_str());
         }
         break;
 
@@ -228,7 +228,7 @@ void RdWebClient::service(RdWebServer *pWebServer)
            // Check for having been in this state for too long
            if (RdWebServerUtils::isTimeout(millis(), _webClientStateEntryMs, MAX_MS_IN_CLIENT_STATE_WITHOUT_DATA))
            {
-               Log.info("WebClient no-data timeout");
+               Log.trace("WebClient no-data timeout");
                _TCPClient.stop();
                cleanupTCPRxResources();
                setState(WEB_CLIENT_NONE);
@@ -268,7 +268,7 @@ void RdWebClient::service(RdWebServer *pWebServer)
                setState(WEB_CLIENT_SEND_RESOURCE_WAIT);
                if (!handledOk)
                {
-                   Log.info("WebClient couldn't handle request");
+                   Log.trace("WebClient couldn't handle request");
                }
            }
            else
@@ -303,7 +303,7 @@ void RdWebClient::service(RdWebServer *pWebServer)
                // Close connection and finish
                _TCPClient.stop();
                setState(WEB_CLIENT_NONE);
-               Log.info("WebClient resp complete");
+               Log.trace("WebClient resp complete");
                break;
            }
            // Send data in chunks based on limited buffer sizes in TCP stack
@@ -312,7 +312,7 @@ void RdWebClient::service(RdWebServer *pWebServer)
                // Completed - close client
                _TCPClient.stop();
                setState(WEB_CLIENT_NONE);
-               Log.info("WebClient Sent %s, %d bytes total, %d blocks",
+               Log.trace("WebClient Sent %s, %d bytes total, %d blocks",
                         _pResourceToSend->_pResId, _pResourceToSend->_dataLen, _resourceSendBlkCount);
                break;
            }
@@ -440,18 +440,18 @@ RdWebServerResourceDescr *RdWebClient::handleReceivedHttp(bool& handledOk, RdWeb
         // If not handled ok
         if (!handledOk)
         {
-            Log.info("WebClient Endpoint %s not found or invalid", endpointStr.c_str());
+            Log.trace("WebClient Endpoint %s not found or invalid", endpointStr.c_str());
         }
     }
     else
     {
-        Log.info("WebClient Cannot find command or args");
+        Log.trace("WebClient Cannot find command or args");
     }
 
     // Handle situations where the command wasn't handled ok
     if (!handledOk)
     {
-        Log.info("WebClient Returning 404 Not found");
+        Log.trace("WebClient Returning 404 Not found");
         formHTTPResponse(_httpRespStr, "404 Not Found", "text/plain", "404 Not Found", -1);
         _TCPClient.write((uint8_t *)_httpRespStr.c_str(), _httpRespStr.length());
     }
