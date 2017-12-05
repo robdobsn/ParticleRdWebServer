@@ -25,8 +25,8 @@ private:
 
     // Time between TCP frames
     // On Photon 20ms works almost all the time, 10ms fails
-    static const unsigned long MS_WAIT_BETWEEN_TCP_FRAMES = 25;
-    static const unsigned long MS_WAIT_AFTER_LAST_TCP_FRAME = 200;
+    static const unsigned long MS_WAIT_BETWEEN_TCP_FRAMES = 0;
+    static const unsigned long MS_WAIT_AFTER_LAST_TCP_FRAME = 0;
 
     // Max chunk size of HTTP response sending
     // On Photon 2000 works ok, 5000 fails

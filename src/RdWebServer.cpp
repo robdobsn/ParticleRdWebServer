@@ -37,7 +37,7 @@ void RdWebClient::setState(WebClientState newState)
     _webClientStateEntryMs = millis();
     if ((newState != WEB_CLIENT_SEND_RESOURCE) && (newState != WEB_CLIENT_SEND_RESOURCE_WAIT))
     {
-        Log.trace("%09ld WebClient %d State: %s entryMs %ld", micros(), _clientIdx, connStateStr(), _webClientStateEntryMs);
+        Log.trace("%09lu WebClient#%d State: %s @Ms %ld", micros(), _clientIdx, connStateStr(), _webClientStateEntryMs);
     }
 }
 
@@ -130,7 +130,7 @@ void RdWebClient::handleTCPReadData(int numToRead)
         {
             int payloadLen = getContentLengthFromHeader(_httpReqStr);
             _curHttpPayloadRxPos = 0;
-            Log.trace("%09ld WebClient Payload length %d", micros(), payloadLen);
+            Log.trace("%09lu WebClient#%d Payload length %d", micros(), _clientIdx, payloadLen);
             // We have to ignore payloads that are too big for our memory
             if (payloadLen > HTTP_MAX_PAYLOAD_LENGTH)
             {
@@ -210,7 +210,7 @@ void RdWebClient::service(RdWebServer *pWebServer)
             // Info
             IPAddress ip    = _TCPClient.remoteIP();
             String    ipStr = ip;
-            Log.trace("%09ld WebClient IP %s", micros(), ipStr.c_str());
+            Log.trace("%09lu WebClient#%d IP %s", micros(), _clientIdx, ipStr.c_str());
         }
         break;
 
@@ -219,7 +219,7 @@ void RdWebClient::service(RdWebServer *pWebServer)
            // Check if client is still connected
            if (!_TCPClient.connected())
            {
-               Log.trace("%09ld WebClient disconnected", micros());
+               Log.trace("%09lu WebClient#%d disconnected", micros(), _clientIdx);
                _TCPClient.stop();
                cleanupTCPRxResources();
                setState(WEB_CLIENT_NONE);
@@ -228,7 +228,7 @@ void RdWebClient::service(RdWebServer *pWebServer)
            // Check for having been in this state for too long
            if (RdWebServerUtils::isTimeout(millis(), _webClientStateEntryMs, MAX_MS_IN_CLIENT_STATE_WITHOUT_DATA))
            {
-               Log.trace("%09ld WebClient no-data timeout", micros());
+               Log.trace("%09lu WebClient#%d no-data timeout", micros(), _clientIdx);
                _TCPClient.stop();
                cleanupTCPRxResources();
                setState(WEB_CLIENT_NONE);
@@ -255,7 +255,7 @@ void RdWebClient::service(RdWebServer *pWebServer)
            // Check for completion
            if (_httpHeaderComplete && (_httpReqPayloadLen == _curHttpPayloadRxPos))
            {
-               Log.trace("%09ld WebClient received %d", micros(), _httpReqStr.length());
+               Log.trace("%09lu WebClient#%d received %d", micros(), _clientIdx, _httpReqStr.length());
                bool handledOk = false;
                _pResourceToSend = handleReceivedHttp(handledOk, pWebServer);
                // clean the received resources
@@ -268,7 +268,7 @@ void RdWebClient::service(RdWebServer *pWebServer)
                setState(WEB_CLIENT_SEND_RESOURCE_WAIT);
                if (!handledOk)
                {
-                   Log.trace("%09ld WebClient couldn't handle request", micros());
+                   Log.trace("%09lu WebClient#%d couldn't handle request", micros(), _clientIdx);
                }
            }
            else
@@ -303,7 +303,7 @@ void RdWebClient::service(RdWebServer *pWebServer)
                // Close connection and finish
                _TCPClient.stop();
                setState(WEB_CLIENT_NONE);
-               Log.trace("%09ld WebClient resp complete", micros());
+               Log.trace("%09lu WebClient#%d resp complete", micros(), _clientIdx);
                break;
            }
            // Send data in chunks based on limited buffer sizes in TCP stack
@@ -312,7 +312,7 @@ void RdWebClient::service(RdWebServer *pWebServer)
                // Completed - close client
                _TCPClient.stop();
                setState(WEB_CLIENT_NONE);
-               Log.trace("%09ld WebClient Sent %s, %d bytes total, %d blocks", micros(),
+               Log.trace("%09lu WebClient#%d Sent %s, %d bytes total, %d blocks", micros(), _clientIdx,
                         _pResourceToSend->_pResId, _pResourceToSend->_dataLen, _resourceSendBlkCount);
                break;
            }
@@ -326,7 +326,7 @@ void RdWebClient::service(RdWebServer *pWebServer)
            }
 
            // Send next chunk
-//    Log.trace("WebClient Writing %d bytes (%d) = %02x %02x %02x %02x ... %02x %02x %02x", toSendBytes, _resourceSendIdx,
+//    Log.trace("%09lu WebClient#%d Writing %d bytes (%d) = %02x %02x %02x %02x ... %02x %02x %02x", micros(), _clientIdx, toSendBytes, _resourceSendIdx,
 //             pMem[0], pMem[1], pMem[2], pMem[3], pMem[toSendBytes - 3], pMem[toSendBytes - 2], pMem[toSendBytes - 1]);
 
            _TCPClient.write(pMem, toSendBytes);
@@ -371,14 +371,14 @@ RdWebServerResourceDescr *RdWebClient::handleReceivedHttp(bool& handledOk, RdWeb
     if (extractEndpointArgs(pHttpReq + 3, endpointStr, argStr))
     {
         // Received cmd and arguments
-        Log.trace("%09ld WebClient handleHTTP EndPtStr %s ArgStr %s", micros(),
+        Log.trace("%09lu WebClient#%d handleHTTP EndPtStr %s ArgStr %s", micros(), _clientIdx,
                         endpointStr.c_str(), argStr.c_str());
 
         // Handle REST API commands
         RestAPIEndpointDef *pEndpoint = pWebServer->getEndpoint(endpointStr);
         if (pEndpoint)
         {
-            Log.trace("%09ld WebClient FoundEndpoint <%s> Type %d", micros(),
+            Log.trace("%09lu WebClient#%d FoundEndpoint <%s> Type %d", micros(), _clientIdx,
                         endpointStr.c_str(), pEndpoint->_endpointType);
             if (pEndpoint->_endpointType == RestAPIEndpointDef::ENDPOINT_CALLBACK)
             {
@@ -387,7 +387,7 @@ RdWebServerResourceDescr *RdWebClient::handleReceivedHttp(bool& handledOk, RdWeb
                 apiMsg._pMsgContent   = _pHttpReqPayload;
                 apiMsg._msgContentLen = _httpReqPayloadLen;
                 (pEndpoint->_callback)(apiMsg, retStr);
-                Log.trace("%09ld WebClient api response len %d", micros(), retStr.length());
+                Log.trace("%09lu WebClient#%d api response len %d", micros(), _clientIdx, retStr.length());
                 if (strlen(pEndpoint->_pContentType) == 0)
                 {
                     formHTTPResponse(_httpRespStr, "200 OK", "application/json", retStr.c_str(), -1);
@@ -396,13 +396,9 @@ RdWebServerResourceDescr *RdWebClient::handleReceivedHttp(bool& handledOk, RdWeb
                 {
                     formHTTPResponse(_httpRespStr, "200 OK", pEndpoint->_pContentType, retStr.c_str(), -1);
                 }
-                Log.trace("%09ld WebClient http response len %d", micros(), _httpRespStr.length());
                 // These delays arrived at by experimentation - 15ms seems ok, 10ms is not
                 delay(20);
                 _TCPClient.write((uint8_t *)_httpRespStr.c_str(), _httpRespStr.length());
-                Log.trace("%09ld WebClient write to tcp clientIdx %d len %d", micros(), _clientIdx, _httpRespStr.length());
-                // See comment above
-                delay(20);
                 _TCPClient.flush();
                 handledOk = true;
             }
@@ -419,8 +415,6 @@ RdWebServerResourceDescr *RdWebClient::handleReceivedHttp(bool& handledOk, RdWeb
                 {
                     if (pRes->_pData != NULL)
                     {
-                        Log.trace("%09ld WebClient sending resource %s, %d bytes, %s",
-                                  micros(), pRes->_pResId, pRes->_dataLen, pRes->_pMimeType);
                         // Form header
                         formHTTPResponse(_httpRespStr, "200 OK", pRes->_pMimeType, "", pRes->_dataLen);
                         _TCPClient.write((uint8_t *)_httpRespStr.c_str(), _httpRespStr.length());
@@ -442,18 +436,15 @@ RdWebServerResourceDescr *RdWebClient::handleReceivedHttp(bool& handledOk, RdWeb
         // If not handled ok
         if (!handledOk)
         {
-            Log.trace("%09ld WebClient Endpoint %s not found or invalid", micros(), endpointStr.c_str());
         }
     }
     else
     {
-        Log.trace("%09ld WebClient Cannot find command or args", micros());
     }
 
     // Handle situations where the command wasn't handled ok
     if (!handledOk)
     {
-        Log.trace("%09ld WebClient Returning 404 Not found", micros());
         formHTTPResponse(_httpRespStr, "404 Not Found", "text/plain", "404 Not Found", -1);
         _TCPClient.write((uint8_t *)_httpRespStr.c_str(), _httpRespStr.length());
     }
@@ -600,7 +591,6 @@ void RdWebServer::setState(WebServerState newState)
 {
     _webServerState        = newState;
     _webServerStateEntryMs = millis();
-    Log.trace("%09ld WebServerState: %s entryMs %ld", micros(), connStateStr(), _webServerStateEntryMs);
 }
 
 
@@ -675,11 +665,8 @@ void RdWebServer::service()
         break;
 
     case WEB_SERVER_BEGUN:
-        // Service the clients
         for (int clientIdx = 0; clientIdx < MAX_WEB_CLIENTS; clientIdx++)
         {
-            _webClients[clientIdx].service(this);
-
             if (_webClients[clientIdx].clientIsActive())
             {
                 _webServerActiveLastUnixTime = Time.now();
