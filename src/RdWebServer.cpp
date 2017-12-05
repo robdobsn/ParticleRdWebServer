@@ -396,9 +396,14 @@ RdWebServerResourceDescr *RdWebClient::handleReceivedHttp(bool& handledOk, RdWeb
                 {
                     formHTTPResponse(_httpRespStr, "200 OK", pEndpoint->_pContentType, retStr.c_str(), -1);
                 }
+                Log.trace("%09lu WebClient#%d http response len %d", micros(), _clientIdx, _httpRespStr.length());
+                // On Photon before 0.7.0-rc.4 this was needed
                 // These delays arrived at by experimentation - 15ms seems ok, 10ms is not
-                delay(20);
+                // delay(20);
                 _TCPClient.write((uint8_t *)_httpRespStr.c_str(), _httpRespStr.length());
+                Log.trace("%09lu WebClient#%d write to tcp len %d", micros(), _clientIdx, _httpRespStr.length());
+                // // See comment above
+                // delay(20);
                 _TCPClient.flush();
                 handledOk = true;
             }
@@ -415,6 +420,8 @@ RdWebServerResourceDescr *RdWebClient::handleReceivedHttp(bool& handledOk, RdWeb
                 {
                     if (pRes->_pData != NULL)
                     {
+                        Log.trace("%09lu WebClient#%d sending resource %s, %d bytes, %s",
+                                  micros(), _clientIdx, pRes->_pResId, pRes->_dataLen, pRes->_pMimeType);
                         // Form header
                         formHTTPResponse(_httpRespStr, "200 OK", pRes->_pMimeType, "", pRes->_dataLen);
                         _TCPClient.write((uint8_t *)_httpRespStr.c_str(), _httpRespStr.length());
@@ -436,15 +443,18 @@ RdWebServerResourceDescr *RdWebClient::handleReceivedHttp(bool& handledOk, RdWeb
         // If not handled ok
         if (!handledOk)
         {
+            Log.trace("%09lu WebClient#%d Endpoint %s not found or invalid", micros(), _clientIdx, endpointStr.c_str());
         }
     }
     else
     {
+        Log.trace("%09lu WebClient#%d Cannot find command or args", micros(), _clientIdx);
     }
 
     // Handle situations where the command wasn't handled ok
     if (!handledOk)
     {
+        Log.trace("%09lu WebClient#%d Returning 404 Not found", micros(), _clientIdx);
         formHTTPResponse(_httpRespStr, "404 Not Found", "text/plain", "404 Not Found", -1);
         _TCPClient.write((uint8_t *)_httpRespStr.c_str(), _httpRespStr.length());
     }
@@ -591,6 +601,7 @@ void RdWebServer::setState(WebServerState newState)
 {
     _webServerState        = newState;
     _webServerStateEntryMs = millis();
+    Log.trace("%09lu WebServerState: %s entryMs %ld", micros(), connStateStr(), _webServerStateEntryMs);
 }
 
 
@@ -665,11 +676,20 @@ void RdWebServer::service()
         break;
 
     case WEB_SERVER_BEGUN:
+        // Service the clients (only service one inactive client)
+        bool firstAvailableServiced = false;
         for (int clientIdx = 0; clientIdx < MAX_WEB_CLIENTS; clientIdx++)
         {
             if (_webClients[clientIdx].clientIsActive())
             {
+                _webClients[clientIdx].service(this);
                 _webServerActiveLastUnixTime = Time.now();
+            }
+            else
+            {
+                if (!firstAvailableServiced)
+                    _webClients[clientIdx].service(this);
+                firstAvailableServiced = true;
             }
         }
         break;
