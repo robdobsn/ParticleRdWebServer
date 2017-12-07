@@ -64,8 +64,10 @@ void setup()
     Serial.printlnf("IP Address %s", myIpAddress);
 
     // Add endpoint
-    restAPIEndpoints.addEndpoint("postsettings", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_PostSettings, "");
-    restAPIEndpoints.addEndpoint("getsettings", RestAPIEndpointDef::ENDPOINT_CALLBACK, restAPI_GetSettings, "");
+    restAPIEndpoints.addEndpoint("postsettings", RestAPIEndpointDef::ENDPOINT_CALLBACK,
+                    restAPI_PostSettings, "", "");
+    restAPIEndpoints.addEndpoint("getsettings", RestAPIEndpointDef::ENDPOINT_CALLBACK,
+                    restAPI_GetSettings, "", "");
 
     // Construct server
     pWebServer = new RdWebServer();

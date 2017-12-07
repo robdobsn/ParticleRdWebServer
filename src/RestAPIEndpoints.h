@@ -31,25 +31,21 @@ class RestAPIEndpointDef
 {
 public:
     static const int ENDPOINT_CALLBACK = 1;
-    RestAPIEndpointDef(const char *pStr, int endpointType, RestAPIEndpointCallbackType callback, const char* pContentType)
+    RestAPIEndpointDef(const char *pStr, int endpointType,
+                RestAPIEndpointCallbackType callback,
+                const char* pContentType,
+                const char* pContentEncoding)
     {
-        int stlen = strlen(pStr);
-
-        _pEndpointStr = new char[stlen + 1];
-        strcpy(_pEndpointStr, pStr);
+        _endpointStr = pStr;
         _endpointType = endpointType;
-        _callback     = callback;
-        _pContentType = new char[strlen(pContentType) + 1];
-        strcpy(_pContentType, pContentType);
+        _callback = callback;
+        _contentType = pContentType;
+        _contentEncoding = pContentEncoding;
     };
-    ~RestAPIEndpointDef()
-    {
-        delete _pEndpointStr;
-        delete _pContentType;
-    }
-    char* _pEndpointStr;
-    int   _endpointType;
-    char* _pContentType;
+    String _endpointStr;
+    int _endpointType;
+    String _contentType;
+    String _contentEncoding;
     RestAPIEndpointCallbackType _callback;
 };
 
@@ -84,20 +80,24 @@ public:
 
 
     // Get nth endpoint
-    char *getNthEndpointStr(int n, int& endpointType, RestAPIEndpointCallbackType& callback)
+    const char *getNthEndpointStr(int n, int& endpointType,
+                    RestAPIEndpointCallbackType& callback)
     {
         if ((n >= 0) && (n < _numEndpoints))
         {
             endpointType = _pEndpoints[n]->_endpointType;
             callback     = _pEndpoints[n]->_callback;
-            return _pEndpoints[n]->_pEndpointStr;
+            return _pEndpoints[n]->_endpointStr.c_str();
         }
         return NULL;
     }
 
 
     // Add an endpoint
-    void addEndpoint(const char *pEndpointStr, int endpointType, RestAPIEndpointCallbackType callback, const char* pContentType)
+    void addEndpoint(const char *pEndpointStr, int endpointType,
+                RestAPIEndpointCallbackType callback,
+                const char* pContentType,
+                const char* pContentEncoding)
     {
         // Check for overflow
         if (_numEndpoints >= MAX_WEB_SERVER_ENDPOINTS)
@@ -106,8 +106,9 @@ public:
         }
 
         // Create new command definition and add
-        RestAPIEndpointDef *pNewEndpointDef = new RestAPIEndpointDef(pEndpointStr, endpointType, callback, pContentType);
-
+        RestAPIEndpointDef *pNewEndpointDef =
+                new RestAPIEndpointDef(pEndpointStr, endpointType, callback,
+                            pContentType, pContentEncoding);
         _pEndpoints[_numEndpoints] = pNewEndpointDef;
         _numEndpoints++;
     }
@@ -120,7 +121,7 @@ public:
         for (int endpointIdx = 0; endpointIdx < _numEndpoints; endpointIdx++)
         {
             RestAPIEndpointDef *pEndpoint = _pEndpoints[endpointIdx];
-            if (strcasecmp(pEndpoint->_pEndpointStr, pEndpointStr) == 0)
+            if (strcasecmp(pEndpoint->_endpointStr.c_str(), pEndpointStr) == 0)
             {
                 return pEndpoint;
             }
@@ -153,7 +154,7 @@ public:
         {
             RestAPIEndpointCallbackType callback;
             int  endpointType;
-            char *pEndpointStr = getNthEndpointStr(i, endpointType, callback);
+            const char *pEndpointStr = getNthEndpointStr(i, endpointType, callback);
             if (!pEndpointStr)
             {
                 continue;
@@ -298,5 +299,5 @@ public:
 private:
     // Endpoint list
     RestAPIEndpointDef *_pEndpoints[MAX_WEB_SERVER_ENDPOINTS];
-    int                _numEndpoints;
+    int _numEndpoints;
 };

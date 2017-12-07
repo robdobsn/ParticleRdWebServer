@@ -371,30 +371,34 @@ RdWebServerResourceDescr *RdWebClient::handleReceivedHttp(bool& handledOk, RdWeb
     if (extractEndpointArgs(pHttpReq + 3, endpointStr, argStr))
     {
         // Received cmd and arguments
-        Log.trace("%09lu WebClient#%d handleHTTP EndPtStr %s ArgStr %s", micros(), _clientIdx,
-                        endpointStr.c_str(), argStr.c_str());
+        Log.trace("%09lu WebClient#%d handleHTTP EndPtStr %s ArgStr %s", micros(),
+                        _clientIdx, endpointStr.c_str(), argStr.c_str());
 
         // Handle REST API commands
         RestAPIEndpointDef *pEndpoint = pWebServer->getEndpoint(endpointStr);
         if (pEndpoint)
         {
-            Log.trace("%09lu WebClient#%d FoundEndpoint <%s> Type %d", micros(), _clientIdx,
-                        endpointStr.c_str(), pEndpoint->_endpointType);
+            Log.trace("%09lu WebClient#%d FoundEndpoint <%s> Type %d", micros(),
+                        _clientIdx, endpointStr.c_str(), pEndpoint->_endpointType);
             if (pEndpoint->_endpointType == RestAPIEndpointDef::ENDPOINT_CALLBACK)
             {
                 String             retStr;
-                RestAPIEndpointMsg apiMsg(httpMethod, endpointStr.c_str(), argStr.c_str(), pHttpReq);
+                RestAPIEndpointMsg apiMsg(httpMethod, endpointStr.c_str(),
+                            argStr.c_str(), pHttpReq);
                 apiMsg._pMsgContent   = _pHttpReqPayload;
                 apiMsg._msgContentLen = _httpReqPayloadLen;
                 (pEndpoint->_callback)(apiMsg, retStr);
-                Log.trace("%09lu WebClient#%d api response len %d", micros(), _clientIdx, retStr.length());
-                if (strlen(pEndpoint->_pContentType) == 0)
+                Log.trace("%09lu WebClient#%d api response len %d", micros(),
+                            _clientIdx, retStr.length());
+                if (pEndpoint->_contentType.length() == 0)
                 {
-                    formHTTPResponse(_httpRespStr, "200 OK", "application/json", retStr.c_str(), -1);
+                    formHTTPResponse(_httpRespStr, "200 OK", "application/json",
+                            "", retStr.c_str(), -1);
                 }
                 else
                 {
-                    formHTTPResponse(_httpRespStr, "200 OK", pEndpoint->_pContentType, retStr.c_str(), -1);
+                    formHTTPResponse(_httpRespStr, "200 OK", pEndpoint->_contentType,
+                            pEndpoint->_contentEncoding, retStr.c_str(), -1);
                 }
                 Log.trace("%09lu WebClient#%d http response len %d", micros(), _clientIdx, _httpRespStr.length());
                 // On Photon before 0.7.0-rc.4 this was needed
@@ -423,7 +427,8 @@ RdWebServerResourceDescr *RdWebClient::handleReceivedHttp(bool& handledOk, RdWeb
                         Log.trace("%09lu WebClient#%d sending resource %s, %d bytes, %s",
                                   micros(), _clientIdx, pRes->_pResId, pRes->_dataLen, pRes->_pMimeType);
                         // Form header
-                        formHTTPResponse(_httpRespStr, "200 OK", pRes->_pMimeType, "", pRes->_dataLen);
+                        formHTTPResponse(_httpRespStr, "200 OK", pRes->_pMimeType,
+                                    pRes->_pContentEncoding, "", pRes->_dataLen);
                         _TCPClient.write((uint8_t *)_httpRespStr.c_str(), _httpRespStr.length());
 
                         /*const char *pBuff   = _httpRespStr.c_str();
@@ -455,7 +460,7 @@ RdWebServerResourceDescr *RdWebClient::handleReceivedHttp(bool& handledOk, RdWeb
     if (!handledOk)
     {
         Log.trace("%09lu WebClient#%d Returning 404 Not found", micros(), _clientIdx);
-        formHTTPResponse(_httpRespStr, "404 Not Found", "text/plain", "404 Not Found", -1);
+        formHTTPResponse(_httpRespStr, "404 Not Found", "text/plain", "", "404 Not Found", -1);
         _TCPClient.write((uint8_t *)_httpRespStr.c_str(), _httpRespStr.length());
     }
     return pResourceToRespondWith;
@@ -528,13 +533,17 @@ int RdWebClient::getContentLengthFromHeader(const char *msgBuf)
 
 // Form a header to respond
 void RdWebClient::formHTTPResponse(String& respStr, const char *rsltCode,
-                                   const char *contentType, const char *respBody, int contentLen)
+                    const char *contentType, const char *contentEncoding,
+                    const char *respBody, int contentLen)
 {
     if (contentLen == -1)
     {
         contentLen = strlen(respBody);
     }
-    respStr = String::format("HTTP/1.1 %s\r\nAccess-Control-Allow-Origin: *\r\nContent-Type: %s\r\nConnection: close\r\nContent-Length: %d\r\n\r\n%s", rsltCode, contentType, contentLen, respBody);
+    respStr = String::format("HTTP/1.1 %s\r\nAccess-Control-Allow-Origin: *\r\nContent-Type: %s\r\n", rsltCode, contentType);
+    if ((contentEncoding != NULL) && (strlen(contentEncoding) != 0))
+        respStr += String::format("Content-Encoding: %s\r\n", contentEncoding);
+    respStr += String::format("Connection: close\r\nContent-Length: %d\r\n\r\n%s", contentLen, respBody);
 }
 
 
@@ -659,40 +668,46 @@ void RdWebServer::service()
     // Handle different states
     switch (_webServerState)
     {
-    case WEB_SERVER_STOPPED:
-        break;
-
-    case WEB_SERVER_WAIT_CONN:
-        if (WiFi.ready())
+        case WEB_SERVER_STOPPED:
         {
-            restart(_TCPPort);
-            if (_pTCPServer)
-            {
-                Log.info("WebServer TCPServer Begin");
-                _pTCPServer->begin();
-                setState(WEB_SERVER_BEGUN);
-            }
+            break;
         }
-        break;
 
-    case WEB_SERVER_BEGUN:
-        // Service the clients (only service one inactive client)
-        bool firstAvailableServiced = false;
-        for (int clientIdx = 0; clientIdx < MAX_WEB_CLIENTS; clientIdx++)
+        case WEB_SERVER_WAIT_CONN:
         {
-            if (_webClients[clientIdx].clientIsActive())
+            if (WiFi.ready())
             {
-                _webClients[clientIdx].service(this);
-                _webServerActiveLastUnixTime = Time.now();
+                restart(_TCPPort);
+                if (_pTCPServer)
+                {
+                    Log.info("WebServer TCPServer Begin");
+                    _pTCPServer->begin();
+                    setState(WEB_SERVER_BEGUN);
+                }
             }
-            else
+            break;
+        }
+
+        case WEB_SERVER_BEGUN:
+        {
+            // Service the clients (only service one inactive client)
+            bool firstAvailableServiced = false;
+            for (int clientIdx = 0; clientIdx < MAX_WEB_CLIENTS; clientIdx++)
             {
-                if (!firstAvailableServiced)
+                if (_webClients[clientIdx].clientIsActive())
+                {
                     _webClients[clientIdx].service(this);
-                firstAvailableServiced = true;
+                    _webServerActiveLastUnixTime = Time.now();
+                }
+                else
+                {
+                    if (!firstAvailableServiced)
+                        _webClients[clientIdx].service(this);
+                    firstAvailableServiced = true;
+                }
             }
+            break;
         }
-        break;
     }
 }
 

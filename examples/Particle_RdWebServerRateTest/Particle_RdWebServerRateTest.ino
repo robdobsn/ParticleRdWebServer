@@ -21,14 +21,14 @@ RdWebServer* pWebServer = NULL;
 
 void restAPI_QueryStatus(RestAPIEndpointMsg& apiMsg, String& retStr)
 {
-    retStr = "{\"rslt\":\"ok\"}";
+    retStr = "{\"pos\":{\"X\":0.00000,\"Y\":100.00000,\"Z\":180.00000}, \"mvTyp\":\"abs\"}";
 }
 
 void setup()
 {
   Serial.begin(115200);
   delay(3000);
-  Log.info("Particle_RdWebServerTest 2017Sep01");
+  Log.info("Particle_RdWebServerTest 20171207");
 
   while(1)
   {
@@ -44,7 +44,7 @@ void setup()
   Serial.printlnf("IP Address %s", myIpAddress);
 
   // Add endpoint
-  restAPIEndpoints.addEndpoint("Q", RestAPIEndpointDef::ENDPOINT_CALLBACK,
+  restAPIEndpoints.addEndpoint("status", RestAPIEndpointDef::ENDPOINT_CALLBACK,
             restAPI_QueryStatus, "", "");
 
   // Construct server

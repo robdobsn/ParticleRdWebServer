@@ -24,7 +24,7 @@ private:
     static const unsigned long MAX_MS_IN_CLIENT_STATE_WITHOUT_DATA = 2000;
 
     // Time between TCP frames
-    // On Photon 20ms works almost all the time, 10ms fails
+    // On Photon before 0.7.0-rc.4 this was needed 20ms works almost all the time, 10ms fails
     static const unsigned long MS_WAIT_BETWEEN_TCP_FRAMES = 0;
     static const unsigned long MS_WAIT_AFTER_LAST_TCP_FRAME = 0;
 
@@ -119,7 +119,8 @@ private:
 
     // Form HTTP response
     static void formHTTPResponse(String& respStr, const char *rsltCode,
-                          const char *contentType, const char *respBody, int contentLen);
+                          const char *contentType, const char *contentEncoding,
+                          const char *respBody, int contentLen);
 
 };
 

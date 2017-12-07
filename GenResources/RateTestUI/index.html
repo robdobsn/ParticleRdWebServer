@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>RdWebServer</title>
+    <script>
+    function bodyIsLoaded()
+    {
+        console.log("Body loaded");
+        window.pageState = {
+            count: 0
+        }
+        // Status update timer
+        window.pageState.statusUpdateTimer = setTimeout(statusUpdate, 1000);
+    }
+    function statusUpdate()
+    {
+        callAjax("/status", statusCallback, failCallback);
+    }
+    function statusCallback(resp)
+    {
+        window.pageState.statusUpdateTimer = setTimeout(statusUpdate, 100);
+        var counter = document.getElementById("counter");
+        counter.innerHTML = window.pageState.count++;
+    }
+    function failCallback(resp)
+    {
+        console.log("Failed");
+        // window.pageState.statusUpdateTimer = setTimeout(statusUpdate, 100);
+        // var counter = document.getElementById("counter");
+        // counter.innerHTML = window.pageState.count++;
+    }
+    function callAjax(url, okCallback, failCallback)
+    {
+        var xmlhttp = new XMLHttpRequest();
+        xmlhttp.onreadystatechange = function()
+        {
+            if (xmlhttp.readyState === 4) {
+                if (xmlhttp.status === 200) {
+                    if ((okCallback !== undefined) && (typeof okCallback !== 'undefined'))
+                        okCallback(xmlhttp.responseText);
+                }
+                else {
+                    if ((failCallback !== undefined) && (typeof failCallback !== 'undefined'))
+                        failCallback(xmlhttp);
+                }
+            }
+        };
+        xmlhttp.open("GET", url, true);
+        xmlhttp.send();
+    }
+    </script>
+</head>
+<body onload="bodyIsLoaded(event)">Hello from RdWebServer<BR><span id="counter"><span></body>
+</html>
