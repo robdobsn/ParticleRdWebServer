@@ -393,12 +393,14 @@ RdWebServerResourceDescr *RdWebClient::handleReceivedHttp(bool& handledOk, RdWeb
                 if (pEndpoint->_contentType.length() == 0)
                 {
                     formHTTPResponse(_httpRespStr, "200 OK", "application/json",
-                            "", retStr.c_str(), -1);
+                            "", retStr.c_str(), -1,
+                            pEndpoint->_noCache, pEndpoint->_extraHeaders.c_str());
                 }
                 else
                 {
                     formHTTPResponse(_httpRespStr, "200 OK", pEndpoint->_contentType,
-                            pEndpoint->_contentEncoding, retStr.c_str(), -1);
+                            pEndpoint->_contentEncoding, retStr.c_str(), -1,
+                            pEndpoint->_noCache, pEndpoint->_extraHeaders.c_str());
                 }
                 Log.trace("%09lu WebClient#%d http response len %d", micros(), _clientIdx, _httpRespStr.length());
                 // On Photon before 0.7.0-rc.4 this was needed
@@ -428,7 +430,8 @@ RdWebServerResourceDescr *RdWebClient::handleReceivedHttp(bool& handledOk, RdWeb
                                   micros(), _clientIdx, pRes->_pResId, pRes->_dataLen, pRes->_pMimeType);
                         // Form header
                         formHTTPResponse(_httpRespStr, "200 OK", pRes->_pMimeType,
-                                    pRes->_pContentEncoding, "", pRes->_dataLen);
+                                    pRes->_pContentEncoding, "", pRes->_dataLen,
+                                    pRes->_noCache, pRes->_pExtraHeaders);
                         _TCPClient.write((uint8_t *)_httpRespStr.c_str(), _httpRespStr.length());
 
                         /*const char *pBuff   = _httpRespStr.c_str();
@@ -534,7 +537,8 @@ int RdWebClient::getContentLengthFromHeader(const char *msgBuf)
 // Form a header to respond
 void RdWebClient::formHTTPResponse(String& respStr, const char *rsltCode,
                     const char *contentType, const char *contentEncoding,
-                    const char *respBody, int contentLen)
+                    const char *respBody, int contentLen, bool noCache,
+                    const char *extraHeaders)
 {
     if (contentLen == -1)
     {
@@ -543,6 +547,10 @@ void RdWebClient::formHTTPResponse(String& respStr, const char *rsltCode,
     respStr = String::format("HTTP/1.1 %s\r\nAccess-Control-Allow-Origin: *\r\nContent-Type: %s\r\n", rsltCode, contentType);
     if ((contentEncoding != NULL) && (strlen(contentEncoding) != 0))
         respStr += String::format("Content-Encoding: %s\r\n", contentEncoding);
+    if ((extraHeaders != NULL) && (strlen(extraHeaders) != 0))
+        respStr += extraHeaders;
+    if (noCache)
+        respStr += "Cache-Control: no-cache, no-store, must-revalidate\r\n";
     respStr += String::format("Connection: close\r\nContent-Length: %d\r\n\r\n%s", contentLen, respBody);
 }
 

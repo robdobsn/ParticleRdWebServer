@@ -120,8 +120,9 @@ private:
     // Form HTTP response
     static void formHTTPResponse(String& respStr, const char *rsltCode,
                           const char *contentType, const char *contentEncoding,
-                          const char *respBody, int contentLen);
-
+                          const char *respBody, int contentLen,
+                          bool noCache = false,
+                          const char *extraHeaders = NULL);
 };
 
 class RdWebServer

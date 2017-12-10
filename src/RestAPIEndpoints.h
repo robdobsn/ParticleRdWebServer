@@ -34,19 +34,27 @@ public:
     RestAPIEndpointDef(const char *pStr, int endpointType,
                 RestAPIEndpointCallbackType callback,
                 const char* pContentType,
-                const char* pContentEncoding)
+                const char* pContentEncoding,
+                bool noCache,
+                const char* pExtraHeaders)
     {
         _endpointStr = pStr;
         _endpointType = endpointType;
         _callback = callback;
         _contentType = pContentType;
-        _contentEncoding = pContentEncoding;
+        if (pContentEncoding)
+            _contentEncoding = pContentEncoding;
+        _noCache = noCache;
+        if (pExtraHeaders)
+            _extraHeaders = pExtraHeaders;
     };
     String _endpointStr;
     int _endpointType;
     String _contentType;
     String _contentEncoding;
     RestAPIEndpointCallbackType _callback;
+    bool _noCache;
+    String _extraHeaders;
 };
 
 // Collection of endpoints
@@ -97,7 +105,9 @@ public:
     void addEndpoint(const char *pEndpointStr, int endpointType,
                 RestAPIEndpointCallbackType callback,
                 const char* pContentType,
-                const char* pContentEncoding)
+                const char* pContentEncoding = NULL,
+                bool pNoCache = true,
+                const char* pExtraHeaders = NULL)
     {
         // Check for overflow
         if (_numEndpoints >= MAX_WEB_SERVER_ENDPOINTS)
@@ -108,7 +118,8 @@ public:
         // Create new command definition and add
         RestAPIEndpointDef *pNewEndpointDef =
                 new RestAPIEndpointDef(pEndpointStr, endpointType, callback,
-                            pContentType, pContentEncoding);
+                            pContentType, pContentEncoding,
+                            pNoCache, pExtraHeaders);
         _pEndpoints[_numEndpoints] = pNewEndpointDef;
         _numEndpoints++;
     }
