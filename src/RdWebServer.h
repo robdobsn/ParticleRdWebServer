@@ -22,6 +22,7 @@ private:
 
     // Timeouts
     static const unsigned long MAX_MS_IN_CLIENT_STATE_WITHOUT_DATA = 2000;
+    static const unsigned long MAX_MS_TO_KEEP_ALIVE = 10000;
 
     // Time between TCP frames
     // On Photon before 0.7.0-rc.4 this was needed 20ms works almost all the time, 10ms fails
@@ -95,6 +96,9 @@ private:
     int _resourceSendBlkCount;
     unsigned long _resourceSendMillis;
 
+    // Keep-alive requested
+    bool _keepAlive;
+
     // Index of client - for debug
     int _clientIdx;
 
@@ -110,6 +114,7 @@ private:
 
     // Helpers
     static int getContentLengthFromHeader(const char *msgBuf);
+    static bool getKeepAliveFromHeader(const char *msgBuf);
 
     // Extract endpoint arguments
     static bool extractEndpointArgs(const char *buf, String& endpointStr, String& argStr);
@@ -121,7 +126,7 @@ private:
     static void formHTTPResponse(String& respStr, const char *rsltCode,
                           const char *contentType, const char *contentEncoding,
                           const char *respBody, int contentLen,
-                          bool noCache = false,
+                          bool noCache = false, bool keepAlive = false,
                           const char *extraHeaders = NULL);
 };
 
