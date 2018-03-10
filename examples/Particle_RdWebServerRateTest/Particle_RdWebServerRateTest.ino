@@ -2,7 +2,7 @@
 // Rob Dobson 2012-2017
 
 #include "RdWebServer.h"
-#include "GenResources.h"
+#include "GenResourcesEx.h"
 
 SYSTEM_THREAD(ENABLED);
 SYSTEM_MODE(AUTOMATIC);
@@ -54,7 +54,7 @@ void setup()
   if (pWebServer)
   {
     // Add resources to web server
-    pWebServer->addStaticResources(genResources, genResourcesCount);
+    pWebServer->addStaticResources(genResourcesEx, genResourcesExCount);
 
     // Endpoints
     pWebServer->addRestAPIEndpoints(&restAPIEndpoints);

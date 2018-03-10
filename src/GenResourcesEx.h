@@ -1,7 +1,7 @@
 // Auto-Generated file containing res folder binary contents
 #include "RdWebServerResources.h"
 
-static const uint8_t reso_index_html[] {
+static const uint8_t resoex_index_html[] {
     0x1f,0x8b,0x08,0x08,0xb4,0x46,0x29,0x5a,0x02,0xff,0x69,0x6e,0x64,0x65,0x78,0x2e,
     0x74,0x6d,0x70,0x00,0xa5,0x53,0x51,0x6f,0xd3,0x30,0x10,0x7e,0x47,0xe2,0x3f,0xb8,
     0x7e,0xa8,0x6c,0xcd,0x4a,0x03,0xe3,0x69,0x8b,0x83,0xd8,0x28,0x74,0x52,0x27,0xd0,
@@ -35,9 +35,8 @@ static const uint8_t reso_index_html[] {
     };
 
 // Resource descriptions
-static RdWebServerResourceDescr genResources[] = {
-    RdWebServerResourceDescr("index.html", "text/html", "gzip", reso_index_html, sizeof(reso_index_html)-1)
+static RdWebServerResourceDescr genResourcesEx[] = {
+    RdWebServerResourceDescr("index.html", "text/html", "gzip", resoex_index_html, sizeof(resoex_index_html)-1)
     };
 
-static int genResourcesCount = sizeof(genResources) / sizeof(RdWebServerResourceDescr);
-
+static int genResourcesExCount = sizeof(genResourcesEx) / sizeof(RdWebServerResourceDescr);

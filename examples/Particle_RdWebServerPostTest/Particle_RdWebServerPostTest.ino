@@ -9,7 +9,7 @@
 #include "RdWebServer.h"
 const int   webServerPort = 80;
 RdWebServer *pWebServer   = NULL;
-#include "GenResources.h"
+#include "GenResourcesEx.h"
 
 // API Endpoints
 RestAPIEndpoints restAPIEndpoints;
@@ -76,7 +76,7 @@ void setup()
     if (pWebServer)
     {
         // Add resources to web server
-        pWebServer->addStaticResources(genResources, genResourcesCount);
+        pWebServer->addStaticResources(genResourcesEx, genResourcesExCount);
 
         // Endpoints
         pWebServer->addRestAPIEndpoints(&restAPIEndpoints);

@@ -768,6 +768,9 @@ void RdWebServer::service()
 // Add resources to the web server
 void RdWebServer::addStaticResources(RdWebServerResourceDescr *pResources, int numResources)
 {
+  for (int i = 0; i < numResources; i++)
+    Log.trace("Adding static resource %s mime %s encoding %s len %d", pResources[i]._pResId,
+              pResources[i]._pMimeType, pResources[i]._pContentEncoding, pResources[i]._dataLen);
   _pWebServerResources   = pResources;
   _numWebServerResources = numResources;
 }
