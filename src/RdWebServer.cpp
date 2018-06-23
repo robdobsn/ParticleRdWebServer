@@ -325,7 +325,7 @@ void RdWebClient::service(RdWebServer *pWebServer)
       }
 
       // Check if last part of resource has been sent
-      if (_resourceSendIdx >= _pResourceToSend->_dataLen)
+      else if (_resourceSendIdx >= _pResourceToSend->_dataLen)
       {
         responseComplete = true;
         Log.trace("WebClient#%d Sent %s, %d bytes total, %d blocks", _clientIdx,
