@@ -36,6 +36,7 @@ private:
     // TCP client
     TCPClient _TCPClient;
 
+public:
     // Methods
     static const int METHOD_OTHER   = 0;
     static const int METHOD_GET     = 1;
