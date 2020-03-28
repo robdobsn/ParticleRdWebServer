@@ -12,6 +12,7 @@ struct RestAPIEndpointMsg
     const char* _pMsgHeader;
     unsigned char* _pMsgContent;
     int _msgContentLen;
+    void *_objRef;
     RestAPIEndpointMsg(int method, const char* pEndpointStr, const char* pArgStr, const char* pMsgHeader)
     {
         _method = method;
@@ -20,6 +21,7 @@ struct RestAPIEndpointMsg
         _pMsgHeader = pMsgHeader;
         _pMsgContent = NULL;
         _msgContentLen = 0;
+        _objRef = NULL;
     }
 };
 
@@ -41,13 +43,26 @@ public:
         _endpointStr = pStr;
         _endpointType = endpointType;
         _callback = callback;
+        _objRef = NULL;
         _contentType = pContentType;
         if (pContentEncoding)
             _contentEncoding = pContentEncoding;
         _noCache = noCache;
         if (pExtraHeaders)
             _extraHeaders = pExtraHeaders;
-    };
+    }
+
+    RestAPIEndpointDef(const char *pStr, int endpointType,
+                       RestAPIEndpointCallbackType callback,
+                       void *objRef,
+                       const char *pContentType,
+                       const char *pContentEncoding,
+                       bool noCache,
+                       const char *pExtraHeaders) : RestAPIEndpointDef(pStr, endpointType, callback, pContentType, pContentEncoding, noCache, pExtraHeaders)
+    {
+        _objRef = objRef;
+    }
+
     String _endpointStr;
     int _endpointType;
     String _contentType;
@@ -55,8 +70,12 @@ public:
     RestAPIEndpointCallbackType _callback;
     bool _noCache;
     String _extraHeaders;
+    void *_objRef;
 };
 
+
+                
+                
 // Collection of endpoints
 class RestAPIEndpoints
 {
@@ -109,6 +128,25 @@ public:
                 bool pNoCache = true,
                 const char* pExtraHeaders = NULL)
     {
+        addEndpointObj(pEndpointStr,
+            endpointType,
+            NULL,
+            callback,
+            pContentType,
+            pContentEncoding,
+            pNoCache,
+            pExtraHeaders
+        );
+    }
+
+    void addEndpointObj(const char *pEndpointStr, int endpointType,
+                void *objRef,
+                RestAPIEndpointCallbackType callback,
+                const char* pContentType,
+                const char* pContentEncoding,
+                bool pNoCache,
+                const char* pExtraHeaders)
+    {
         // Check for overflow
         if (_numEndpoints >= MAX_WEB_SERVER_ENDPOINTS)
         {
@@ -122,8 +160,8 @@ public:
                             pNoCache, pExtraHeaders);
         _pEndpoints[_numEndpoints] = pNewEndpointDef;
         _numEndpoints++;
-    }
 
+    }
 
     // Get the endpoint definition corresponding to a requested endpoint
     RestAPIEndpointDef *getEndpoint(const char *pEndpointStr)

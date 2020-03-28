@@ -423,6 +423,9 @@ RdWebServerResourceDescr *RdWebClient::handleReceivedHttp(bool& handledOk, RdWeb
                                   argStr.c_str(), pHttpReq);
         apiMsg._pMsgContent   = _pHttpReqPayload;
         apiMsg._msgContentLen = _httpReqPayloadLen;
+        
+        apiMsg._objRef = pEndpoint->_objRef;
+        
         (pEndpoint->_callback)(apiMsg, retStr);
         Log.trace("WebClient#%d api response len %d",
                   _clientIdx, retStr.length());
